@@ -33,7 +33,7 @@ export default function App() {
   const [bills, setBills] = useState(initialBills);
   const [view, setView] = useState("list"); 
   const [filterMethod, setFilterMethod] = useState("all");
-  const [nextId, setNextId] = useState(10);
+  const [nextId, setNextId] = useState(4);
 
   // Vencimento geral da Fatura do Cartão de Crédito
   const [creditCardDueDate, setCreditCardDueDate] = useState("15");
@@ -63,7 +63,6 @@ export default function App() {
     return filteredBills.reduce((sum, b) => sum + b.amount, 0);
   }, [filteredBills]);
 
-  // Totais por método para os cards do dashboard
   const methodTotals = useMemo(() => {
     return {
       cartao: bills.filter(b => b.method === "cartao").reduce((s, b) => s + b.amount, 0),
@@ -161,14 +160,10 @@ export default function App() {
       {/* Top Header Selector */}
       <div style={{ padding: "40px 20px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <select style={{ background: "transparent", border: "none", width: "auto", padding: 0, fontSize: 18, fontWeight: 700, color: "#fff" }}>
-            <option value="05">Maio</option>
-          </select>
-          <select style={{ background: "transparent", border: "none", width: "auto", padding: 0, fontSize: 18, fontWeight: 700, color: "#666" }}>
-            <option value="2026">2026</option>
-          </select>
+          <span style={{ fontSize: 20, fontWeight: 700, color: "#fff" }}>Maio</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: "#666" }}>2026</span>
         </div>
-        <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#222235", display: "flex", alignItems: "center", justify-content: "center", fontSize: 16 }}>💰</div>
+        <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#222235", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>💰</div>
       </div>
 
       {/* TELA DE RESUMO (DASHBOARD) */}
@@ -199,17 +194,17 @@ export default function App() {
             </div>
           </div>
 
-          {/* Grid de métodos de pagamento idêntico ao original */}
+          {/* Grid de métodos de pagamento restaurado */}
           <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-            <div className="main-card" style={{ flex: 1, marginBottom: 0, padding: 14 }}>
+            <div className="main-card" style={{ flex: 1, marginBottom: 0, padding: 14, border: "1px solid #3d1d1d" }}>
               <p style={{ fontSize: 11, color: "#f87171", fontWeight: 600 }}>💳 Cartão</p>
               <p style={{ fontSize: 16, fontWeight: 700, marginTop: 4, fontFamily: "'DM Mono', monospace" }}>{formatBRL(methodTotals.cartao)}</p>
             </div>
-            <div className="main-card" style={{ flex: 1, marginBottom: 0, padding: 14 }}>
+            <div className="main-card" style={{ flex: 1, marginBottom: 0, padding: 14, border: "1px solid #163d22" }}>
               <p style={{ fontSize: 11, color: "#34d399", fontWeight: 600 }}>📄 Boleto</p>
               <p style={{ fontSize: 16, fontWeight: 700, marginTop: 4, fontFamily: "'DM Mono', monospace" }}>{formatBRL(methodTotals.boleto)}</p>
             </div>
-            <div className="main-card" style={{ flex: 1, marginBottom: 0, padding: 14 }}>
+            <div className="main-card" style={{ flex: 1, marginBottom: 0, padding: 14, border: "1px solid #1e294b" }}>
               <p style={{ fontSize: 11, color: "#60a5fa", fontWeight: 600 }}>📱 Pix</p>
               <p style={{ fontSize: 16, fontWeight: 700, marginTop: 4, fontFamily: "'DM Mono', monospace" }}>{formatBRL(methodTotals.pix)}</p>
             </div>
@@ -224,7 +219,7 @@ export default function App() {
               <div style={{ width: `${totalBills > 0 ? (totalPaid / totalBills) * 100 : 0}%`, height: "100%", background: "#4ade80", transition: "width 0.3s" }} />
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 16, pt: 8, borderTop: "1px solid #1f1f2e", textAlign: "center" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 16, paddingTop: 8, borderTop: "1px solid #1f1f2e", textAlign: "center" }}>
               <div>
                 <p style={{ fontSize: 10, color: "#666", fontWeight: 600 }}>Total Mês</p>
                 <p style={{ fontSize: 12, fontWeight: 700, marginTop: 2, color: "#aaa" }}>{formatBRL(totalBills)}</p>
@@ -259,7 +254,7 @@ export default function App() {
             ))}
           </div>
 
-          {/* Novo Ajuste: Opção de definir o dia do vencimento do cartão quando selecionada a categoria cartão */}
+          {/* Opção de definir o dia do vencimento do cartão */}
           {filterMethod === "cartao" && (
             <div className="config-card-due">
               <span style={{ fontSize: 13, color: "#a0a0b0", fontWeight: 500 }}>📅 Dia do Vencimento da Fatura:</span>
@@ -281,7 +276,7 @@ export default function App() {
             <span style={{ fontSize: 18, fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>{formatBRL(sessionTotal)}</span>
           </div>
 
-          {/* Card com a lista real de contas */}
+          {/* Lista Real de Contas em Cards Estilizados */}
           <div className="main-card" style={{ padding: "4px 20px" }}>
             {filteredBills.length === 0 ? (
               <p style={{ textAlign: "center", color: "#505060", padding: "30px 0", fontSize: 14 }}>Nenhuma conta lançada aqui.</p>
@@ -356,7 +351,7 @@ export default function App() {
             </select>
           </div>
 
-          {/* Condicional Inteligente: Se for Cartão, remove data e adiciona parcelas */}
+          {/* Condicional de parcelas ou data de vencimento */}
           {form.method === "cartao" ? (
             <div style={{ display: "flex", gap: 12 }}>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
