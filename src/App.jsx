@@ -302,13 +302,6 @@ export default function App() {
             </div>
           </div>
 
-          <div className="main-card" style={{ padding: "14px 20px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p style={{ fontSize: 12, color: "#808090", fontWeight: 600 }}>Total de Contas do Mês</p>
-              <p style={{ fontSize: 18, fontWeight: 700, fontFamily: "'DM Mono', monospace" }}>{formatBRL(totalBills)}</p>
-            </div>
-          </div>
-
           <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
             <div className="main-card" style={{ flex: 1, marginBottom: 0, padding: 14, border: "1px solid #3d1d1d" }}>
               <p style={{ fontSize: 11, color: "#f87171", fontWeight: 600 }}>💳 Cartão</p>
