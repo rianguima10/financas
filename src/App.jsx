@@ -1,4 +1,4 @@
-Import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 const formatBRL = (value) => {
   if (isNaN(value)) value = 0;
@@ -40,21 +40,42 @@ const initialBills = [
   { id: "3", name: "Netflix", amount: 55.9, category: "assinatura", method: "cartao", startMonth: 4, startYear: 2026, frequencyType: "parcelado", currentInstallment: 1, totalInstallments: 1 },
 ];
 
-export default function App() {
-  const [currentMonth, setCurrentMonth] = useState(4); 
-  const [currentYear, setCurrentYear] = useState(2026);
-  
-  const [income, setIncome] = useState(5000);
-  const [editingIncome, setEditingIncome] = useState(false);
-  const [incomeInput, setIncomeInput] = useState("5000");
-  const [bills, setBills] = useState(initialBills);
-  const [view, setView] = useState("dashboard"); 
-  const [filterMethod, setFilterMethod] = useState("all");
-  const [creditCardDueDate, setCreditCardDueDate] = useState("15");
+// Helper: load from localStorage with fallback
+function loadFromStorage(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
 
-  const [paidRegistry, setPaidRegistry] = useState({
-    "2026-4-3": true 
-  });
+// Helper: save to localStorage
+function saveToStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage full or unavailable — silent fail
+  }
+}
+
+export default function App() {
+  const now = new Date();
+
+  const [currentMonth, setCurrentMonth] = useState(() => loadFromStorage("fin_currentMonth", now.getMonth()));
+  const [currentYear, setCurrentYear] = useState(() => loadFromStorage("fin_currentYear", now.getFullYear()));
+
+  const [income, setIncome] = useState(() => loadFromStorage("fin_income", 5000));
+  const [editingIncome, setEditingIncome] = useState(false);
+  const [incomeInput, setIncomeInput] = useState("");
+
+  const [bills, setBills] = useState(() => loadFromStorage("fin_bills", initialBills));
+  const [view, setView] = useState("dashboard");
+  const [filterMethod, setFilterMethod] = useState("all");
+  const [creditCardDueDate, setCreditCardDueDate] = useState(() => loadFromStorage("fin_creditCardDueDate", "15"));
+
+  const [paidRegistry, setPaidRegistry] = useState(() => loadFromStorage("fin_paidRegistry", {}));
 
   const [form, setForm] = useState({
     name: "",
@@ -66,6 +87,14 @@ export default function App() {
     currentInstallment: "1",
     totalInstallments: "1"
   });
+
+  // ─── Persist all state to localStorage whenever it changes ───
+  useEffect(() => { saveToStorage("fin_currentMonth", currentMonth); }, [currentMonth]);
+  useEffect(() => { saveToStorage("fin_currentYear", currentYear); }, [currentYear]);
+  useEffect(() => { saveToStorage("fin_income", income); }, [income]);
+  useEffect(() => { saveToStorage("fin_bills", bills); }, [bills]);
+  useEffect(() => { saveToStorage("fin_paidRegistry", paidRegistry); }, [paidRegistry]);
+  useEffect(() => { saveToStorage("fin_creditCardDueDate", creditCardDueDate); }, [creditCardDueDate]);
 
   const billsForSelectedMonth = useMemo(() => {
     return bills.map(bill => {
@@ -84,8 +113,8 @@ export default function App() {
         if (calculatedInstallment >= 1 && calculatedInstallment <= bill.totalInstallments) {
           return { ...bill, currentInstallment: calculatedInstallment, paid: isPaid };
         }
-      } 
-      
+      }
+
       if (bill.frequencyType === "unica" && monthsDiff === 0) {
         return { ...bill, paid: isPaid };
       }
@@ -97,7 +126,6 @@ export default function App() {
   const calendarDays = useMemo(() => {
     const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
     const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
-    
     const daysArray = [];
     for (let i = 0; i < firstDayIndex; i++) daysArray.push(null);
     for (let day = 1; day <= totalDays; day++) daysArray.push(day);
@@ -110,15 +138,9 @@ export default function App() {
       const dayStr = bill.method === "cartao" ? creditCardDueDate : bill.dueDate;
       const dayInt = parseInt(dayStr);
       if (!dayInt) return;
-
-      if (!map[dayInt]) {
-        map[dayInt] = { hasPending: false, hasPaid: false };
-      }
-      if (bill.paid) {
-        map[dayInt].hasPaid = true;
-      } else {
-        map[dayInt].hasPending = true;
-      }
+      if (!map[dayInt]) map[dayInt] = { hasPending: false, hasPaid: false };
+      if (bill.paid) map[dayInt].hasPaid = true;
+      else map[dayInt].hasPending = true;
     });
     return map;
   }, [billsForSelectedMonth, creditCardDueDate]);
@@ -133,17 +155,13 @@ export default function App() {
     return billsForSelectedMonth.filter(b => b.method === filterMethod);
   }, [billsForSelectedMonth, filterMethod]);
 
-  const sessionTotal = useMemo(() => {
-    return filteredBills.reduce((sum, b) => sum + b.amount, 0);
-  }, [filteredBills]);
+  const sessionTotal = useMemo(() => filteredBills.reduce((sum, b) => sum + b.amount, 0), [filteredBills]);
 
-  const methodTotals = useMemo(() => {
-    return {
-      cartao: billsForSelectedMonth.filter(b => b.method === "cartao").reduce((s, b) => s + b.amount, 0),
-      boleto: billsForSelectedMonth.filter(b => b.method === "boleto").reduce((s, b) => s + b.amount, 0),
-      pix: billsForSelectedMonth.filter(b => b.method === "pix").reduce((s, b) => s + b.amount, 0),
-    };
-  }, [billsForSelectedMonth]);
+  const methodTotals = useMemo(() => ({
+    cartao: billsForSelectedMonth.filter(b => b.method === "cartao").reduce((s, b) => s + b.amount, 0),
+    boleto: billsForSelectedMonth.filter(b => b.method === "boleto").reduce((s, b) => s + b.amount, 0),
+    pix: billsForSelectedMonth.filter(b => b.method === "pix").reduce((s, b) => s + b.amount, 0),
+  }), [billsForSelectedMonth]);
 
   const addBill = () => {
     const parsedAmount = parseFloat(form.amount);
@@ -151,16 +169,16 @@ export default function App() {
       alert("Por favor, insira um nome e um valor válido.");
       return;
     }
-    
+
     const isCartao = form.method === "cartao";
     const actualFrequency = isCartao ? "parcelado" : form.frequencyType;
     const generatedId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
-    setBills(prev => [...prev, { 
-      id: generatedId, 
-      name: form.name, 
-      amount: parsedAmount, 
-      category: form.category, 
+    setBills(prev => [...prev, {
+      id: generatedId,
+      name: form.name,
+      amount: parsedAmount,
+      category: form.category,
       dueDate: isCartao ? null : String(form.dueDate).padStart(2, "0"),
       method: form.method,
       startMonth: currentMonth,
@@ -176,10 +194,7 @@ export default function App() {
 
   const togglePaid = (id) => {
     const paidKey = `${currentYear}-${currentMonth}-${id}`;
-    setPaidRegistry(prev => ({
-      ...prev,
-      [paidKey]: !prev[paidKey]
-    }));
+    setPaidRegistry(prev => ({ ...prev, [paidKey]: !prev[paidKey] }));
   };
 
   const deleteBill = (id) => {
@@ -240,19 +255,23 @@ export default function App() {
         .cal-day.empty { background: transparent; }
         .cal-day.bill-pending { background: #221616; color: #f87171; border-color: #3d1d1d; font-weight: 700; }
         .cal-day.bill-paid { background: #112417; color: #4ade80; border-color: #163d22; font-weight: 700; }
+        .storage-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; color: #4ade80; background: #112417; border: 1px solid #163d22; border-radius: 20px; padding: 3px 10px; }
       `}</style>
 
       {/* Top Header */}
       <div style={{ padding: "40px 20px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select className="select-clean" value={currentMonth} onChange={(e) => setCurrentMonth(parseInt(e.target.value))}>
-            {MONTHS.map(m => <option key={m.value} value={m.value} style={{background: "#14141e"}}>{m.label}</option>)}
+            {MONTHS.map(m => <option key={m.value} value={m.value} style={{ background: "#14141e" }}>{m.label}</option>)}
           </select>
           <select className="select-clean gray" value={currentYear} onChange={(e) => setCurrentYear(parseInt(e.target.value))}>
-            {YEARS.map(y => <option key={y} value={y} style={{background: "#14141e"}}>{y}</option>)}
+            {YEARS.map(y => <option key={y} value={y} style={{ background: "#14141e" }}>{y}</option>)}
           </select>
         </div>
-        <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#222235", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>💰</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span className="storage-badge">💾 Salvo</span>
+          <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#222235", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>💰</div>
+        </div>
       </div>
 
       {/* TELA DE RESUMO */}
@@ -279,11 +298,10 @@ export default function App() {
             <p style={{ fontSize: 12, color: "#808090", fontWeight: 600 }}>Saldo Atual Livre (Renda − Pagas)</p>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
               <p style={{ fontSize: 30, fontWeight: 700, color: balance >= 0 ? "#4ade80" : "#f87171", fontFamily: "'DM Mono', monospace" }}>{formatBRL(balance)}</p>
-              <span style={{ fontSize: 28 }}>😊</span>
+              <span style={{ fontSize: 28 }}>{balance >= 0 ? "😊" : "😬"}</span>
             </div>
           </div>
 
-          {/* CARD TOTAL DE CONTAS ADICIONADO AQUI */}
           <div className="main-card" style={{ padding: "14px 20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <p style={{ fontSize: 12, color: "#808090", fontWeight: 600 }}>Total de Contas do Mês</p>
@@ -306,7 +324,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Card de Progresso */}
           <div className="main-card" style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#808090", fontWeight: 600 }}>
               <span>Progresso de Contas Pagas</span>
@@ -315,7 +332,6 @@ export default function App() {
             <div style={{ width: "100%", height: 6, background: "#1f1f2e", borderRadius: 3, marginTop: 8, overflow: "hidden" }}>
               <div style={{ width: `${totalBills > 0 ? (totalPaid / totalBills) * 100 : 0}%`, height: "100%", background: "#4ade80", transition: "width 0.3s" }} />
             </div>
-
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 16, paddingTop: 8, borderTop: "1px solid #1f1f2e", textAlign: "center" }}>
               <div>
                 <p style={{ fontSize: 10, color: "#666", fontWeight: 600 }}>Total Mês</p>
@@ -339,19 +355,10 @@ export default function App() {
               {WEEKDAYS.map((w, i) => <div key={i} className="cal-weekday">{w}</div>)}
               {calendarDays.map((day, idx) => {
                 if (day === null) return <div key={`e-${idx}`} className="cal-day empty" />;
-                
                 const status = dayStatusMap[day];
                 let dayClass = "cal-day";
-                
-                if (status) {
-                  dayClass += status.hasPending ? " bill-pending" : " bill-paid";
-                }
-
-                return (
-                  <div key={day} className={dayClass}>
-                    {day}
-                  </div>
-                );
+                if (status) dayClass += status.hasPending ? " bill-pending" : " bill-paid";
+                return <div key={day} className={dayClass}>{day}</div>;
               })}
             </div>
           </div>
@@ -404,7 +411,6 @@ export default function App() {
                       {isCartao ? "Fatura" : "Venc"}
                       <span className="tag-inner">Dia {isCartao ? creditCardDueDate : bill.dueDate}</span>
                     </div>
-
                     <div style={{ flex: 1, paddingLeft: 4 }}>
                       <p style={{ fontWeight: 600, fontSize: 15, textDecoration: bill.paid ? "line-through" : "none", color: bill.paid ? "#505060" : "#f0f0f5" }}>{bill.name}</p>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4, flexWrap: "wrap" }}>
@@ -417,7 +423,6 @@ export default function App() {
                         )}
                       </div>
                     </div>
-
                     <p style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, fontSize: 15, color: bill.paid ? "#4ade80" : "#f87171", marginRight: 4 }}>{formatBRL(bill.amount)}</p>
                     <button className="toggle-btn" onClick={() => togglePaid(bill.id)} style={{ background: bill.paid ? "#11381e" : "#14141e", color: bill.paid ? "#4ade80" : "#303040", border: bill.paid ? "none" : "1.5px solid #222235" }}>{bill.paid ? "✓" : "○"}</button>
                     <button className="del-btn" onClick={() => deleteBill(bill.id)}>✕</button>
@@ -433,7 +438,7 @@ export default function App() {
       {view === "add" && (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 14 }}>
           <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}>Nova conta</h2>
-          
+
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label style={{ fontSize: 12, color: "#808090", fontWeight: 600 }}>Nome da conta</label>
             <input type="text" className="form-input" placeholder="Ex: Internet" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
@@ -447,7 +452,7 @@ export default function App() {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label style={{ fontSize: 12, color: "#808090", fontWeight: 600 }}>Forma de Pagamento</label>
             <select className="form-input" value={form.method} onChange={e => setForm(f => ({ ...f, method: e.target.value, frequencyType: e.target.value === "cartao" ? "parcelado" : "unica" }))}>
-              {METHODS.map(m => <option key={m.id} value={m.id} style={{background: "#14141e"}}>{m.emoji} {m.label}</option>)}
+              {METHODS.map(m => <option key={m.id} value={m.id} style={{ background: "#14141e" }}>{m.emoji} {m.label}</option>)}
             </select>
           </div>
 
@@ -455,9 +460,9 @@ export default function App() {
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label style={{ fontSize: 12, color: "#808090", fontWeight: 600 }}>Frequência da Conta</label>
               <select className="form-input" value={form.frequencyType} onChange={e => setForm(f => ({ ...f, frequencyType: e.target.value }))}>
-                <option value="unica" style={{background: "#14141e"}}>☝️ Única</option>
-                <option value="mensal" style={{background: "#14141e"}}>🔄 Mensal (Todos os meses)</option>
-                <option value="parcelado" style={{background: "#14141e"}}>🔢 Parcelada</option>
+                <option value="unica" style={{ background: "#14141e" }}>☝️ Única</option>
+                <option value="mensal" style={{ background: "#14141e" }}>🔄 Mensal (Todos os meses)</option>
+                <option value="parcelado" style={{ background: "#14141e" }}>🔢 Parcelada</option>
               </select>
             </div>
           )}
@@ -481,7 +486,7 @@ export default function App() {
               <select className="form-input" value={form.dueDate} onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}>
                 {Array.from({ length: 31 }, (_, i) => {
                   const d = String(i + 1).padStart(2, "0");
-                  return <option key={d} value={d} style={{background: "#14141e"}}>Dia {d}</option>;
+                  return <option key={d} value={d} style={{ background: "#14141e" }}>Dia {d}</option>;
                 })}
               </select>
             </div>
@@ -490,7 +495,7 @@ export default function App() {
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label style={{ fontSize: 12, color: "#808090", fontWeight: 600 }}>Categoria</label>
             <select className="form-input" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-              {CATEGORIES.map(c => <option key={c.id} value={c.id} style={{background: "#14141e"}}>{c.emoji} {c.label}</option>)}
+              {CATEGORIES.map(c => <option key={c.id} value={c.id} style={{ background: "#14141e" }}>{c.emoji} {c.label}</option>)}
             </select>
           </div>
 
@@ -504,8 +509,8 @@ export default function App() {
       {/* Navegação Inferior */}
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "#101018", borderTop: "1px solid #1f1f32", display: "flex", zIndex: 20 }}>
         {[
-          { id: "dashboard", label: "Resumo", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg> },
-          { id: "list", label: "Contas", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg> },
+          { id: "dashboard", label: "Resumo", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></svg> },
+          { id: "list", label: "Contas", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" /><rect x="9" y="3" width="6" height="4" rx="1" /><path d="M9 12h6M9 16h4" /></svg> },
         ].map(tab => (
           <button key={tab.id} className={`nav-btn ${view === tab.id || (view === "add" && tab.id === "list") ? "active" : ""}`} onClick={() => setView(tab.id)}>
             {tab.icon}
