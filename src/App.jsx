@@ -23,26 +23,22 @@ const METHODS = [
 const initialBills = [
   { id: 1, name: "Aluguel", amount: 1500, category: "moradia", paid: false, dueDate: "10", method: "boleto" },
   { id: 2, name: "Netflix", amount: 55.9, category: "assinatura", paid: true, method: "cartao", currentInstallment: 1, totalInstallments: 1 },
-  { id: 3, name: "Smarphone", amount: 120, category: "outros", paid: false, method: "cartao", currentInstallment: 3, totalInstallments: 10 },
+  { id: 3, name: "Smartphone", amount: 120, category: "outros", paid: false, method: "cartao", currentInstallment: 3, totalInstallments: 10 },
   { id: 4, name: "Mercado", amount: 800, category: "alimentacao", paid: false, dueDate: "05", method: "pix" },
 ];
 
 export default function App() {
   const [income, setIncome] = useState(5000);
-  const [editingIncome, setEditingIncome] = useState(false);
-  const [incomeInput, setIncomeInput] = useState("5000");
   const [bills, setBills] = useState(initialBills);
   const [view, setView] = useState("list"); 
   const [form, setForm] = useState({ name: "", amount: "", category: "outros", dueDate: "05", method: "cartao", currentInstallment: "1", totalInstallments: "1" });
   const [filterMethod, setFilterMethod] = useState("all");
   const [nextId, setNextId] = useState(10);
 
-  // Vencimento geral da Fatura do Cartão de Crédito (Gerenciado dentro da categoria)
+  // Vencimento geral da Fatura do Cartão de Crédito gerenciado dentro da categoria
   const [creditCardDueDate, setCreditCardDueDate] = useState("15");
-
   const [expandedMethod, setExpandedMethod] = useState(null);
 
-  const totalBills = bills.reduce((s, b) => s + b.amount, 0);
   const totalPaid = bills.filter(b => b.paid).reduce((s, b) => s + b.amount, 0);
   const balance = income - totalPaid;
 
@@ -141,12 +137,12 @@ export default function App() {
             <span style={{ fontSize: 20, fontWeight: 700 }}>Maio</span>
             <span style={{ fontSize: 20, fontWeight: 700, color: "#666" }}>2026</span>
           </div>
-          <div style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(135deg,#6c63ff,#a78bfa)", display: "flex", alignItems: "center", justify-content: "center", fontSize: 18 }}>💰</div>
+          <div style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(135deg,#6c63ff,#a78bfa)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>💰</div>
         </div>
         {view === "list" && <h1 style={{ fontSize: 24, fontWeight: 700, marginTop: 16 }}>Minhas Finanças</h1>}
       </div>
 
-      {/* DASHBOARD */}
+      {/* RESUMO / DASHBOARD */}
       {view === "dashboard" && (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 14 }}>
           <div className="card">
@@ -206,7 +202,7 @@ export default function App() {
                     {isExpanded && (
                       <div className="card" style={{ borderRadius: "0px 0px 16px 16px", marginTop: -12, marginBottom: 12, borderTop: "none", background: "#13131a" }}>
                         
-                        {/* NOVO: OPÇÃO DE AJUSTAR O VENCIMENTO DA FATURA DENTRO DO CARTÃO DE CRÉDITO */}
+                        {/* Ajuste do Vencimento geral da Fatura dentro do Grupo Cartão de Crédito */}
                         {method.id === "cartao" && (
                           <div className="due-card-selector">
                             <span style={{ fontSize: 12, color: "#999", fontWeight: 500 }}>📅 Vencimento da Fatura:</span>
@@ -242,7 +238,6 @@ export default function App() {
                                   </p>
                                   <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
                                     <span className="tag-detail">{cat.emoji} {cat.label}</span>
-                                    {/* Exibição dinâmica das parcelas */}
                                     {bill.method === "cartao" && bill.totalInstallments && (
                                       <span className="tag-installment">
                                         {bill.currentInstallment}/{bill.totalInstallments}x
@@ -332,7 +327,7 @@ export default function App() {
             </select>
           </div>
 
-          {/* AJUSTE: CONDIÇÃO QUE TIRA O VENCIMENTO SE FOR CARTÃO E ADICIONA AS PARCELAS */}
+          {/* Oculta data de vencimento e exibe Parcelas se for Cartão de Crédito */}
           {form.method === "cartao" ? (
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
