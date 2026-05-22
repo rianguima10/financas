@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState, useMemo } from "react";
 
-const formatBRL = (value) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value || 0);
+const formatBRL = (value) => {
+  if (isNaN(value)) value = 0;
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+};
 
 const CATEGORIES = [
   { id: "moradia", label: "Moradia", emoji: "🏠" },
@@ -24,796 +23,156 @@ const METHODS = [
 ];
 
 const MONTHS = [
-  { value: 0, label: "Janeiro" },
-  { value: 1, label: "Fevereiro" },
-  { value: 2, label: "Março" },
-  { value: 3, label: "Abril" },
-  { value: 4, label: "Maio" },
-  { value: 5, label: "Junho" },
-  { value: 6, label: "Julho" },
-  { value: 7, label: "Agosto" },
-  { value: 8, label: "Setembro" },
-  { value: 9, label: "Outubro" },
-  { value: 10, label: "Novembro" },
-  { value: 11, label: "Dezembro" },
+  { value: 0, label: "Janeiro" }, { value: 1, label: "Fevereiro" },
+  { value: 2, label: "Março" }, { value: 3, label: "Abril" },
+  { value: 4, label: "Maio" }, { value: 5, label: "Junho" },
+  { value: 6, label: "Julho" }, { value: 7, label: "Agosto" },
+  { value: 8, label: "Setembro" }, { value: 9, label: "Outubro" },
+  { value: 10, label: "Novembro" }, { value: 11, label: "Dezembro" }
 ];
 
 const YEARS = [2024, 2025, 2026, 2027, 2028];
+const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
 
-const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const initialBills = [
+  { id: "1", name: "Mercado", amount: 800, category: "alimentacao", dueDate: "05", method: "pix", startMonth: 4, startYear: 2026, frequencyType: "mensal" },
+  { id: "2", name: "Aluguel", amount: 1500, category: "moradia", dueDate: "10", method: "boleto", startMonth: 4, startYear: 2026, frequencyType: "mensal" },
+  { id: "3", name: "Netflix", amount: 55.9, category: "assinatura", method: "cartao", startMonth: 4, startYear: 2026, frequencyType: "parcelado", currentInstallment: 1, totalInstallments: 1 },
+];
 
 export default function App() {
-  const today = new Date();
-
-  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
-  const [currentYear, setCurrentYear] = useState(today.getFullYear());
-
+  const [currentMonth, setCurrentMonth] = useState(4); 
+  const [currentYear, setCurrentYear] = useState(2026);
   const [income, setIncome] = useState(5000);
-
-  const [incomeInput, setIncomeInput] = useState("5000");
-
   const [editingIncome, setEditingIncome] = useState(false);
-
-  const [view, setView] = useState("dashboard");
-
+  const [incomeInput, setIncomeInput] = useState("5000");
+  const [bills, setBills] = useState(initialBills);
+  const [view, setView] = useState("dashboard"); 
   const [filterMethod, setFilterMethod] = useState("all");
-
   const [creditCardDueDate, setCreditCardDueDate] = useState("15");
 
-  const [editingBill, setEditingBill] = useState(null);
-
-  const [bills, setBills] = useState([]);
+  const [paidRegistry, setPaidRegistry] = useState({ "2026-4-3": true });
 
   const [form, setForm] = useState({
-    name: "",
-    amount: "",
-    category: "outros",
-    dueDate: "05",
-    method: "cartao",
-    frequencyType: "mensal",
-    currentInstallment: "1",
-    totalInstallments: "1",
+    name: "", amount: "", category: "outros", dueDate: "05", method: "cartao", 
+    frequencyType: "parcelado", currentInstallment: "1", totalInstallments: "1"
   });
 
-  // =========================
-  // LOCAL STORAGE
-  // =========================
-
-  useEffect(() => {
-    const savedBills = localStorage.getItem("bills");
-    const savedIncome = localStorage.getItem("income");
-    const savedDue = localStorage.getItem("creditDue");
-
-    if (savedBills) {
-      setBills(JSON.parse(savedBills));
-    }
-
-    if (savedIncome) {
-      setIncome(JSON.parse(savedIncome));
-    }
-
-    if (savedDue) {
-      setCreditCardDueDate(savedDue);
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem("bills", JSON.stringify(bills));
-  }, [bills]);
-
-  useEffect(() => {
-    localStorage.setItem("income", JSON.stringify(income));
-  }, [income]);
-
-  useEffect(() => {
-    localStorage.setItem("creditDue", creditCardDueDate);
-  }, [creditCardDueDate]);
-
-  const monthKey = `${currentYear}-${String(currentMonth).padStart(
-    2,
-    "0"
-  )}`;
-
-  const isBillPaid = (bill) => {
-    return bill.paidMonths?.[monthKey] || false;
-  };
-
-  const togglePaid = (id) => {
-    setBills((prev) =>
-      prev.map((bill) => {
-        if (bill.id !== id) return bill;
-
-        return {
-          ...bill,
-          paidMonths: {
-            ...bill.paidMonths,
-            [monthKey]: !isBillPaid(bill),
-          },
-        };
-      })
-    );
-  };
-
-  // =========================
-  // CONTAS DO MÊS
-  // =========================
-
   const billsForSelectedMonth = useMemo(() => {
-    return bills
-      .map((bill) => {
-        const monthsDiff =
-          (currentYear - bill.startYear) * 12 +
-          (currentMonth - bill.startMonth);
+    return bills.map(bill => {
+      const monthsDiff = (currentYear - bill.startYear) * 12 + (currentMonth - bill.startMonth);
+      if (monthsDiff < 0) return null;
+      const paidKey = `${currentYear}-${currentMonth}-${bill.id}`;
+      const isPaid = !!paidRegistry[paidKey];
 
-        if (monthsDiff < 0) return null;
-
-        if (bill.frequencyType === "mensal") {
-          return bill;
+      if (bill.frequencyType === "mensal") return { ...bill, paid: isPaid };
+      if (bill.frequencyType === "parcelado" && bill.totalInstallments) {
+        const calculatedInstallment = Number(bill.currentInstallment) + monthsDiff;
+        if (calculatedInstallment >= 1 && calculatedInstallment <= bill.totalInstallments) {
+          return { ...bill, currentInstallment: calculatedInstallment, paid: isPaid };
         }
-
-        if (
-          bill.frequencyType === "parcelado"
-        ) {
-          const currentInstallment =
-            bill.currentInstallment +
-            monthsDiff;
-
-          if (
-            currentInstallment >= 1 &&
-            currentInstallment <=
-              bill.totalInstallments
-          ) {
-            return {
-              ...bill,
-              currentInstallment,
-            };
-          }
-        }
-
-        if (
-          bill.frequencyType === "unica" &&
-          monthsDiff === 0
-        ) {
-          return bill;
-        }
-
-        return null;
-      })
-      .filter(Boolean);
-  }, [bills, currentMonth, currentYear]);
-
-  // =========================
-  // CALENDÁRIO
-  // =========================
+      } 
+      if (bill.frequencyType === "unica" && monthsDiff === 0) return { ...bill, paid: isPaid };
+      return null;
+    }).filter(Boolean);
+  }, [bills, currentMonth, currentYear, paidRegistry]);
 
   const calendarDays = useMemo(() => {
-    const firstDay = new Date(
-      currentYear,
-      currentMonth,
-      1
-    ).getDay();
-
-    const totalDays = new Date(
-      currentYear,
-      currentMonth + 1,
-      0
-    ).getDate();
-
-    const arr = [];
-
-    for (let i = 0; i < firstDay; i++) {
-      arr.push(null);
-    }
-
-    for (let i = 1; i <= totalDays; i++) {
-      arr.push(i);
-    }
-
-    return arr;
+    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+    const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const daysArray = [];
+    for (let i = 0; i < firstDayIndex; i++) daysArray.push(null);
+    for (let day = 1; day <= totalDays; day++) daysArray.push(day);
+    return daysArray;
   }, [currentMonth, currentYear]);
 
   const dayStatusMap = useMemo(() => {
     const map = {};
-
-    billsForSelectedMonth.forEach((bill) => {
-      const day =
-        bill.method === "cartao"
-          ? parseInt(creditCardDueDate)
-          : parseInt(bill.dueDate);
-
-      if (!map[day]) {
-        map[day] = {
-          hasPaid: false,
-          hasPending: false,
-        };
-      }
-
-      if (isBillPaid(bill)) {
-        map[day].hasPaid = true;
-      } else {
-        map[day].hasPending = true;
-      }
+    billsForSelectedMonth.forEach(bill => {
+      const dayStr = bill.method === "cartao" ? creditCardDueDate : bill.dueDate;
+      const dayInt = parseInt(dayStr);
+      if (!dayInt) return;
+      if (!map[dayInt]) map[dayInt] = { hasPending: false, hasPaid: false };
+      if (bill.paid) map[dayInt].hasPaid = true; else map[dayInt].hasPending = true;
     });
-
     return map;
-  }, [
-    billsForSelectedMonth,
-    currentMonth,
-    currentYear,
-    creditCardDueDate,
-  ]);
+  }, [billsForSelectedMonth, creditCardDueDate]);
 
-  // =========================
-  // TOTAIS
-  // =========================
-
-  const totalBills = billsForSelectedMonth.reduce(
-    (s, b) => s + b.amount,
-    0
-  );
-
-  const totalPaid = billsForSelectedMonth
-    .filter((b) => isBillPaid(b))
-    .reduce((s, b) => s + b.amount, 0);
-
+  const totalBills = billsForSelectedMonth.reduce((s, b) => s + b.amount, 0);
+  const totalPaid = billsForSelectedMonth.filter(b => b.paid).reduce((s, b) => s + b.amount, 0);
   const totalPending = totalBills - totalPaid;
-
   const balance = income - totalPaid;
 
-  const methodTotals = {
-    cartao: billsForSelectedMonth
-      .filter((b) => b.method === "cartao")
-      .reduce((s, b) => s + b.amount, 0),
+  const filteredBills = useMemo(() => {
+    if (filterMethod === "all") return billsForSelectedMonth;
+    return billsForSelectedMonth.filter(b => b.method === filterMethod);
+  }, [billsForSelectedMonth, filterMethod]);
 
-    boleto: billsForSelectedMonth
-      .filter((b) => b.method === "boleto")
-      .reduce((s, b) => s + b.amount, 0),
+  const sessionTotal = useMemo(() => filteredBills.reduce((sum, b) => sum + b.amount, 0), [filteredBills]);
 
-    pix: billsForSelectedMonth
-      .filter((b) => b.method === "pix")
-      .reduce((s, b) => s + b.amount, 0),
-  };
+  const methodTotals = useMemo(() => ({
+      cartao: billsForSelectedMonth.filter(b => b.method === "cartao").reduce((s, b) => s + b.amount, 0),
+      boleto: billsForSelectedMonth.filter(b => b.method === "boleto").reduce((s, b) => s + b.amount, 0),
+      pix: billsForSelectedMonth.filter(b => b.method === "pix").reduce((s, b) => s + b.amount, 0),
+  }), [billsForSelectedMonth]);
 
-  const filteredBills =
-    filterMethod === "all"
-      ? billsForSelectedMonth
-      : billsForSelectedMonth.filter(
-          (b) => b.method === filterMethod
-        );
-
-  // =========================
-  // ADICIONAR / EDITAR
-  // =========================
-
-  const resetForm = () => {
-    setForm({
-      name: "",
-      amount: "",
-      category: "outros",
-      dueDate: "05",
-      method: "cartao",
-      frequencyType: "mensal",
-      currentInstallment: "1",
-      totalInstallments: "1",
-    });
-  };
-
-  const saveBill = () => {
-    if (!form.name || !form.amount)
-      return;
-
-    const data = {
-      name: form.name,
-      amount: parseFloat(form.amount),
-      category: form.category,
-      method: form.method,
-      dueDate:
-        form.method === "cartao"
-          ? null
-          : form.dueDate,
-      frequencyType: form.frequencyType,
-      currentInstallment: parseInt(
-        form.currentInstallment || 1
-      ),
-      totalInstallments: parseInt(
-        form.totalInstallments || 1
-      ),
-    };
-
-    if (editingBill) {
-      setBills((prev) =>
-        prev.map((b) =>
-          b.id === editingBill.id
-            ? { ...b, ...data }
-            : b
-        )
-      );
-    } else {
-      setBills((prev) => [
-        ...prev,
-        {
-          ...data,
-          id: crypto.randomUUID(),
-          startMonth: currentMonth,
-          startYear: currentYear,
-          paidMonths: {},
-        },
-      ]);
-    }
-
-    resetForm();
-    setEditingBill(null);
+  const addBill = () => {
+    const parsedAmount = parseFloat(form.amount);
+    if (!form.name || isNaN(parsedAmount) || parsedAmount <= 0) return alert("Preencha corretamente.");
+    const isCartao = form.method === "cartao";
+    const generatedId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+    setBills(prev => [...prev, { ...form, id: generatedId, amount: parsedAmount, startMonth: currentMonth, startYear: currentYear }]);
     setView("list");
   };
 
-  const deleteBill = (id) => {
-    setBills((prev) =>
-      prev.filter((b) => b.id !== id)
-    );
-  };
-
-  const editBill = (bill) => {
-    setEditingBill(bill);
-
-    setForm({
-      name: bill.name,
-      amount: String(bill.amount),
-      category: bill.category,
-      dueDate: bill.dueDate || "05",
-      method: bill.method,
-      frequencyType: bill.frequencyType,
-      currentInstallment: String(
-        bill.currentInstallment
-      ),
-      totalInstallments: String(
-        bill.totalInstallments
-      ),
-    });
-
-    setView("add");
-  };
-
-  const catInfo = (id) =>
-    CATEGORIES.find((c) => c.id === id);
-
   return (
-    <div
-      style={{
-        background: "#0b0b0f",
-        minHeight: "100vh",
-        color: "white",
-        fontFamily: "sans-serif",
-        maxWidth: 430,
-        margin: "0 auto",
-        paddingBottom: 100,
-      }}
-    >
+    <div style={{ fontFamily: "'DM Sans', sans-serif", background: "#0b0b0f", minHeight: "100vh", maxWidth: 430, margin: "0 auto", color: "#f0f0f5", paddingBottom: 100 }}>
       <style>{`
-        *{
-          box-sizing:border-box;
-        }
-
-        body{
-          margin:0;
-        }
-
-        button,input,select{
-          font-family:inherit;
-          outline:none;
-          border:none;
-        }
-
-        .main-card{
-          background:#14141e;
-          border-radius:24px;
-          padding:20px;
-          margin-bottom:16px;
-          border:1px solid #1f1f2e;
-        }
-
-        .form-input{
-          width:100%;
-          padding:14px;
-          border-radius:14px;
-          background:#1c1c28;
-          color:white;
-          border:1px solid #2b2b3c;
-        }
-
-        .save-btn{
-          width:100%;
-          padding:16px;
-          border-radius:16px;
-          background:#4f46e5;
-          color:white;
-          font-weight:bold;
-        }
-
-        .chip{
-          padding:8px 16px;
-          border-radius:18px;
-          cursor:pointer;
-        }
-
-        .chip.active{
-          background:#4f46e5;
-        }
-
-        .chip.inactive{
-          background:#1c1c28;
-          color:#888;
-        }
-
-        .bill-item{
-          display:flex;
-          align-items:center;
-          gap:12px;
-          padding:16px 0;
-          border-bottom:1px solid #222;
-        }
-
-        .cal-grid{
-          display:grid;
-          grid-template-columns:repeat(7,1fr);
-          gap:6px;
-        }
-
-        .cal-day{
-          height:38px;
-          border-radius:10px;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          background:#1c1c28;
-        }
-
-        .paid{
-          background:#12301b;
-          color:#4ade80;
-        }
-
-        .pending{
-          background:#301212;
-          color:#f87171;
-        }
-
-        .mixed{
-          background:#33250f;
-          color:#fbbf24;
-        }
-
+        * { box-sizing: border-box; }
+        .main-card { background: #14141e; border-radius: 24px; padding: 20px; margin-bottom: 16px; border: 1px solid #1f1f2e; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 14px 0; background: transparent; color: #4e4e62; border: none; }
+        .nav-btn.active { color: #4f46e5; }
+        .form-input { background: #14141e; border: 1.5px solid #222232; border-radius: 14px; color: #f0f0f5; padding: 14px; width: 100%; }
+        .save-btn { width: 100%; padding: 16px; border-radius: 16px; background: #4f46e5; color: #fff; font-weight: 700; border: none; }
+        .fab { position: fixed; bottom: 85px; right: 20px; width: 56px; height: 56px; border-radius: 50%; background: #4f46e5; color: #fff; display: flex; align-items: center; justify-content: center; z-index: 10; border: none; }
       `}</style>
 
-      {/* HEADER */}
-      <div
-        style={{
-          padding: "40px 20px 20px",
-          display: "flex",
-          justifyContent: "space-between",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-          }}
-        >
-          <select
-            value={currentMonth}
-            onChange={(e) =>
-              setCurrentMonth(
-                parseInt(e.target.value)
-              )
-            }
-            style={{
-              background: "#14141e",
-              color: "white",
-              padding: "8px 12px",
-              borderRadius: 12,
-            }}
-          >
-            {MONTHS.map((m) => (
-              <option
-                key={m.value}
-                value={m.value}
-              >
-                {m.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={currentYear}
-            onChange={(e) =>
-              setCurrentYear(
-                parseInt(e.target.value)
-              )
-            }
-            style={{
-              background: "#14141e",
-              color: "white",
-              padding: "8px 12px",
-              borderRadius: 12,
-            }}
-          >
-            {YEARS.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: "50%",
-            background: "#1c1c28",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          💰
-        </div>
+      {/* Header */}
+      <div style={{ padding: "40px 20px 20px", display: "flex", justifyContent: "space-between" }}>
+        <select value={currentMonth} onChange={(e) => setCurrentMonth(parseInt(e.target.value))} style={{ background: "transparent", border: "none", color: "#fff", fontSize: 20, fontWeight: 700 }}>
+          {MONTHS.map(m => <option key={m.value} value={m.value} style={{background: "#14141e"}}>{m.label}</option>)}
+        </select>
       </div>
 
-      {/* DASHBOARD */}
       {view === "dashboard" && (
         <div style={{ padding: "0 16px" }}>
-          <div className="main-card">
-            <div
-              style={{
-                display: "flex",
-                justifyContent:
-                  "space-between",
-              }}
-            >
-              <span>Renda</span>
-
-              <button
-                onClick={() =>
-                  setEditingIncome(
-                    !editingIncome
-                  )
-                }
-                style={{
-                  background: "#4f46e5",
-                  color: "white",
-                  padding: "6px 12px",
-                  borderRadius: 12,
-                }}
-              >
-                editar
-              </button>
-            </div>
-
-            {editingIncome ? (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  marginTop: 12,
-                }}
-              >
-                <input
-                  className="form-input"
-                  type="number"
-                  value={incomeInput}
-                  onChange={(e) =>
-                    setIncomeInput(
-                      e.target.value
-                    )
-                  }
-                />
-
-                <button
-                  className="save-btn"
-                  style={{ width: 120 }}
-                  onClick={() => {
-                    setIncome(
-                      parseFloat(
-                        incomeInput
-                      ) || 0
-                    );
-
-                    setEditingIncome(
-                      false
-                    );
-                  }}
-                >
-                  Salvar
-                </button>
-              </div>
-            ) : (
-              <h1
-                style={{
-                  marginTop: 12,
-                }}
-              >
-                {formatBRL(income)}
-              </h1>
-            )}
+          {/* Card Renda */}
+          <div className="main-card" style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #14141e 100%)" }}>
+            <p style={{ fontSize: 12, color: "#a78bfa" }}>Renda Disponível</p>
+            <p style={{ fontSize: 32, fontWeight: 700 }}>{formatBRL(income)}</p>
           </div>
 
-          <div className="main-card">
-            <p>Saldo Livre</p>
-
-            <h1
-              style={{
-                color:
-                  balance >= 0
-                    ? "#4ade80"
-                    : "#f87171",
-              }}
-            >
-              {formatBRL(balance)}
-            </h1>
-          </div>
-
-          {/* MÉTODOS */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "1fr 1fr 1fr",
-              gap: 10,
-            }}
-          >
-            <div className="main-card">
-              <p>💳 Cartão</p>
-              <h2>
-                {formatBRL(
-                  methodTotals.cartao
-                )}
-              </h2>
+          {/* Cards Lado a Lado */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+            <div className="main-card" style={{ flex: 1, marginBottom: 0, padding: 14 }}>
+              <p style={{ fontSize: 10, color: "#808090" }}>Total Contas</p>
+              <p style={{ fontSize: 18, fontWeight: 700 }}>{formatBRL(totalBills)}</p>
             </div>
-
-            <div className="main-card">
-              <p>📄 Boleto</p>
-              <h2>
-                {formatBRL(
-                  methodTotals.boleto
-                )}
-              </h2>
-            </div>
-
-            <div className="main-card">
-              <p>📱 Pix</p>
-              <h2>
-                {formatBRL(
-                  methodTotals.pix
-                )}
-              </h2>
-            </div>
-          </div>
-
-          {/* PROGRESSO */}
-          <div className="main-card">
-            <div
-              style={{
-                display: "flex",
-                justifyContent:
-                  "space-between",
-              }}
-            >
-              <span>
-                Progresso de Contas
-              </span>
-
-              <span>
-                {totalBills > 0
-                  ? Math.round(
-                      (totalPaid /
-                        totalBills) *
-                        100
-                    )
-                  : 0}
-                %
-              </span>
-            </div>
-
-            <div
-              style={{
-                height: 8,
-                background: "#222",
-                borderRadius: 20,
-                overflow: "hidden",
-                marginTop: 10,
-              }}
-            >
-              <div
-                style={{
-                  width: `${
-                    totalBills > 0
-                      ? (totalPaid /
-                          totalBills) *
-                        100
-                      : 0
-                  }%`,
-                  background: "#4ade80",
-                  height: "100%",
-                }}
-              />
-            </div>
-
-            {/* CALENDÁRIO */}
-            <div
-              style={{
-                marginTop: 24,
-              }}
-            >
-              <div className="cal-grid">
-                {WEEKDAYS.map((w) => (
-                  <div
-                    key={w}
-                    style={{
-                      textAlign:
-                        "center",
-                      fontSize: 12,
-                      color: "#777",
-                    }}
-                  >
-                    {w}
-                  </div>
-                ))}
-
-                {calendarDays.map(
-                  (day, idx) => {
-                    if (!day) {
-                      return (
-                        <div
-                          key={idx}
-                        />
-                      );
-                    }
-
-                    const status =
-                      dayStatusMap[
-                        day
-                      ];
-
-                    let className =
-                      "cal-day";
-
-                    if (status) {
-                      if (
-                        status.hasPaid &&
-                        status.hasPending
-                      ) {
-                        className +=
-                          " mixed";
-                      } else if (
-                        status.hasPending
-                      ) {
-                        className +=
-                          " pending";
-                      } else if (
-                        status.hasPaid
-                      ) {
-                        className +=
-                          " paid";
-                      }
-                    }
-
-                    return (
-                      <div
-                        key={day}
-                        className={
-                          className
-                        }
-                      >
-                        {day}
-                      </div>
-                    );
-                  }
-                )}
-              </div>
+            <div className="main-card" style={{ flex: 1, marginBottom: 0, padding: 14 }}>
+              <p style={{ fontSize: 10, color: "#808090" }}>Saldo Livre</p>
+              <p style={{ fontSize: 18, fontWeight: 700, color: balance >= 0 ? "#4ade80" : "#f87171" }}>{formatBRL(balance)}</p>
             </div>
           </div>
         </div>
       )}
+
+      {/* Nav Inferior */}
+      <div style={{ position: "fixed", bottom: 0, width: "100%", maxWidth: 430, background: "#101018", borderTop: "1px solid #1f1f32", display: "flex" }}>
+        <button className={`nav-btn ${view === "dashboard" ? "active" : ""}`} onClick={() => setView("dashboard")}>Resumo</button>
+        <button className={`nav-btn ${view === "list" ? "active" : ""}`} onClick={() => setView("list")}>Contas</button>
+      </div>
+
+      {view !== "add" && <button className="fab" onClick={() => setView("add")}>+</button>}
     </div>
   );
 }
