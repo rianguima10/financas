@@ -30,6 +30,7 @@ const MONTHS = [
 ];
 
 const YEARS = [2024, 2025, 2026, 2027, 2028];
+const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
 
 const initialBills = [
   { id: 1, name: "Mercado", amount: 800, category: "alimentacao", paid: false, dueDate: "05", method: "pix", startMonth: 4, startYear: 2026, frequencyType: "mensal" },
@@ -45,49 +46,39 @@ export default function App() {
   const [editingIncome, setEditingIncome] = useState(false);
   const [incomeInput, setIncomeInput] = useState("5000");
   const [bills, setBills] = useState(initialBills);
-  const [view, setView] = useState("list"); 
+  const [view, setView] = useState("dashboard"); // Iniciando na tela de Resumo (Início)
   const [filterMethod, setFilterMethod] = useState("all");
   const [nextId, setNextId] = useState(4);
   const [creditCardDueDate, setCreditCardDueDate] = useState("15");
 
-  // Estado do formulário adaptado para o novo fluxo
   const [form, setForm] = useState({
     name: "",
     amount: "",
     category: "outros",
     dueDate: "05",
     method: "cartao",
-    frequencyType: "parcelado", // unica, mensal, parcelado
+    frequencyType: "parcelado",
     currentInstallment: "1",
     totalInstallments: "1"
   });
 
-  // Filtragem e projeção das contas no mês/ano selecionado
+  // Processa as contas elegíveis para o mês selecionado
   const billsForSelectedMonth = useMemo(() => {
     return bills.map(bill => {
-      // Diferença em meses entre o mês selecionado e o mês que a conta foi criada
       const monthsDiff = (currentYear - bill.startYear) * 12 + (currentMonth - bill.startMonth);
-      
-      // Se a conta foi cadastrada para um mês/ano futuro do selecionado, não exibe
       if (monthsDiff < 0) return null;
 
-      // 1. Contas Mensais (Recorrentes Fixas): Aparecem em todos os meses seguintes
       if (bill.frequencyType === "mensal") {
         return bill;
       }
 
-      // 2. Contas Parceladas: Faz a projeção matemática de parcelas para qualquer método
       if (bill.frequencyType === "parcelado" && bill.totalInstallments) {
         const calculatedInstallment = bill.currentInstallment + monthsDiff;
         if (calculatedInstallment >= 1 && calculatedInstallment <= bill.totalInstallments) {
-          return {
-            ...bill,
-            currentInstallment: calculatedInstallment
-          };
+          return { ...bill, currentInstallment: calculatedInstallment };
         }
       } 
       
-      // 3. Contas Únicas: Só aparecem no mês exato do cadastro
       if (bill.frequencyType === "unica" && monthsDiff === 0) {
         return bill;
       }
@@ -95,6 +86,43 @@ export default function App() {
       return null;
     }).filter(Boolean);
   }, [bills, currentMonth, currentYear]);
+
+  // Gera a matriz de dias do calendário para o mês corrente
+  const calendarDays = useMemo(() => {
+    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+    const totalDays = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+    const daysArray = [];
+    // Espaços em branco antes do dia 1
+    for (let i = 0; i < firstDayIndex; i++) {
+      daysArray.push(null);
+    }
+    // Dias do mês
+    for (let day = 1; day <= totalDays; day++) {
+      daysArray.push(day);
+    }
+    return daysArray;
+  }, [currentMonth, currentYear]);
+
+  // Mapeia o status das contas por dia para colorir o calendário
+  const dayStatusMap = useMemo(() => {
+    const map = {};
+    billsForSelectedMonth.forEach(bill => {
+      const dayStr = bill.method === "cartao" ? creditCardDueDate : bill.dueDate;
+      const dayInt = parseInt(dayStr);
+      if (!dayInt) return;
+
+      if (!map[dayInt]) {
+        map[dayInt] = { hasPending: false, hasPaid: false };
+      }
+      if (bill.paid) {
+        map[dayInt].hasPaid = true;
+      } else {
+        map[dayInt].hasPending = true;
+      }
+    });
+    return map;
+  }, [billsForSelectedMonth, creditCardDueDate]);
 
   const totalBills = billsForSelectedMonth.reduce((s, b) => s + b.amount, 0);
   const totalPaid = billsForSelectedMonth.filter(b => b.paid).reduce((s, b) => s + b.amount, 0);
@@ -122,7 +150,6 @@ export default function App() {
     if (!form.name || !form.amount) return;
     
     const isCartao = form.method === "cartao";
-    // Cartão é sempre parcelado por padrão de fluxo da UI antiga
     const actualFrequency = isCartao ? "parcelado" : form.frequencyType;
 
     setBills(prev => [...prev, { 
@@ -141,7 +168,6 @@ export default function App() {
     }]);
 
     setNextId(n => n + 1);
-    // Reset do form mantendo consistência
     setForm({ name: "", amount: "", category: "outros", dueDate: "05", method: "cartao", frequencyType: "parcelado", currentInstallment: "1", totalInstallments: "1" });
     setView("list");
   };
@@ -201,11 +227,19 @@ export default function App() {
         .del-btn { width: 34px; height: 34px; border-radius: 50%; background: #221616; color: #f87171; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; border: none; }
         .save-btn { width: 100%; padding: 16px; border-radius: 16px; background: #4f46e5; color: #fff; font-size: 16px; font-weight: 700; margin-top: 10px; border: none; }
         .config-card-due { display: flex; align-items: center; justify-content: space-between; background: #1a1a26; padding: 12px 16px; border-radius: 16px; margin-bottom: 12px; border: 1px dashed #3a3a52; }
+        
+        /* Estilos Novos do Calendário Mensal */
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 14px; text-align: center; }
+        .cal-weekday { font-size: 11px; font-weight: 700; color: #4e4e62; padding-bottom: 4px; }
+        .cal-day { font-size: 13px; font-weight: 600; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 10px; color: #a0a0b0; background: #14141e; border: 1px solid transparent; }
+        .cal-day.empty { background: transparent; }
+        .cal-day.bill-pending { background: #221616; color: #f87171; border-color: #3d1d1d; font-weight: 700; }
+        .cal-day.bill-paid { background: #112417; color: #4ade80; border-color: #163d22; font-weight: 700; }
       `}</style>
 
-      {/* Top Header */}
-      <div style={{ padding: "40px 20px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      {/* Top Header Contendo os Seletores de Data */}
+      <div style={{ padding: "40px 20px 10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select className="select-clean" value={currentMonth} onChange={(e) => setCurrentMonth(parseInt(e.target.value))}>
             {MONTHS.map(m => <option key={m.value} value={m.value} style={{background: "#14141e"}}>{m.label}</option>)}
           </select>
@@ -213,10 +247,38 @@ export default function App() {
             {YEARS.map(y => <option key={y} value={y} style={{background: "#14141e"}}>{y}</option>)}
           </select>
         </div>
-        <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#222235", display: "flex", alignItems: "center", justifycontent: "center", fontSize: 16, paddingLeft: 10 }}>💰</div>
+        <div style={{ width: 38, height: 38, borderRadius: "50%", background: "#222235", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+          💰
+        </div>
       </div>
 
-      {/* TELA DE RESUMO */}
+      {/* CALENDÁRIO MENSAL EM GRADE VISUAL */}
+      <div style={{ padding: "0 16px 16px 16px" }}>
+        <div className="main-card" style={{ padding: "14px 14px 18px 14px", marginBottom: 8 }}>
+          <div className="cal-grid">
+            {WEEKDAYS.map((w, i) => <div key={i} className="cal-weekday">{w}</div>)}
+            {calendarDays.map((day, idx) => {
+              if (day === null) return <div key={`e-${idx}`} className="cal-day empty" />;
+              
+              const status = dayStatusMap[day];
+              let dayClass = "cal-day";
+              
+              if (status) {
+                // Se houver qualquer conta pendente no dia, prevalece o vermelho
+                dayClass += status.hasPending ? " bill-pending" : " bill-paid";
+              }
+
+              return (
+                <div key={day} className={dayClass}>
+                  {day}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* TELA DE RESUMO (TELA INICIAL DO APP) */}
       {view === "dashboard" && (
         <div style={{ padding: "0 16px" }}>
           <div className="main-card" style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #14141e 100%)" }}>
@@ -357,7 +419,7 @@ export default function App() {
         </div>
       )}
 
-      {/* FORMULÁRIO */}
+      {/* TELA DE FORMULÁRIO */}
       {view === "add" && (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 14 }}>
           <h2 style={{ fontWeight: 700, fontSize: 20, marginBottom: 4 }}>Nova conta</h2>
@@ -379,7 +441,6 @@ export default function App() {
             </select>
           </div>
 
-          {/* Tipo de Frequência para Pix e Boleto */}
           {form.method !== "cartao" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label style={{ fontSize: 12, color: "#808090", fontWeight: 600 }}>Frequência da Conta</label>
@@ -391,7 +452,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Condicional de parcelas ou data de vencimento com base na frequência selecionada */}
           {(form.method === "cartao" || form.frequencyType === "parcelado") ? (
             <div style={{ display: "flex", gap: 12 }}>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -405,7 +465,6 @@ export default function App() {
             </div>
           ) : null}
 
-          {/* Data de Vencimento para Pix e Boleto */}
           {form.method !== "cartao" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <label style={{ fontSize: 12, color: "#808090", fontWeight: 600 }}>Dia do Vencimento</label>
@@ -432,6 +491,7 @@ export default function App() {
 
       {view !== "add" && <button className="fab" onClick={() => setView("add")}>+</button>}
 
+      {/* Menu de Navegação Inferior */}
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "#101018", borderTop: "1px solid #1f1f32", display: "flex", zIndex: 20 }}>
         {[
           { id: "dashboard", label: "Resumo", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg> },
