@@ -28,7 +28,7 @@ const initialBills = [
 ];
 
 export default function App() {
-  // 1. Estados com Inicialização Segura via LocalStorage (Para não perder dados no iPhone)
+  // Inicialização puxando do LocalStorage do iPhone
   const [income, setIncome] = useState(() => {
     const saved = localStorage.getItem("financas_income");
     return saved ? parseFloat(saved) : 5000;
@@ -45,12 +45,12 @@ export default function App() {
   const [form, setForm] = useState({ name: "", amount: "", category: "outros", recurrence: "mensal" });
   const [filterCat, setFilterCat] = useState("all");
 
-  // Pega o mês e ano atual automaticamente para o cabeçalho
+  // Identifica o mês e ano atual automaticamente para separar os gastos
   const currentMonthYear = useMemo(() => {
     return new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   }, []);
 
-  // 2. Efeitos para salvar no LocalStorage sempre que houver alteração
+  // Monitora alterações e salva no celular automaticamente
   useEffect(() => {
     localStorage.setItem("financas_income", income);
   }, [income]);
@@ -59,7 +59,6 @@ export default function App() {
     localStorage.setItem("financas_bills", JSON.stringify(bills));
   }, [bills]);
 
-  // 3. Otimização de Cálculos Pesados (useMemo isolados)
   const totalBills = useMemo(() => bills.reduce((s, b) => s + b.amount, 0), [bills]);
   const totalPaid = useMemo(() => bills.reduce((s, b) => b.paid ? s + b.amount : s, 0), [bills]);
   const totalPending = useMemo(() => totalBills - totalPaid, [totalBills, totalPaid]);
@@ -70,7 +69,6 @@ export default function App() {
     return filterCat === "all" ? bills : bills.filter(b => b.category === filterCat);
   }, [bills, filterCat]);
 
-  // Evita recalculas categorias em re-renders bobos
   const categoryTotals = useMemo(() => {
     return CATEGORIES.map(cat => {
       const total = bills.filter(b => b.category === cat.id).reduce((s, b) => s + b.amount, 0);
@@ -82,9 +80,8 @@ export default function App() {
   const addBill = () => {
     if (!form.name || !form.amount) return;
     
-    // Gerador de ID baseado em timestamp para evitar duplicidade
     const newBill = {
-      id: Date.now(),
+      id: Date.now(), // ID único garantido
       name: form.name,
       amount: parseFloat(form.amount),
       category: form.category,
@@ -144,18 +141,17 @@ export default function App() {
       <div style={{ padding: "54px 20px 16px", background: "linear-gradient(160deg, #15151f 0%, #0f0f13 100%)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <p style={{ fontSize: 12, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, camelCase: "capitalize" }}>{currentMonthYear}</p>
+            <p style={{ fontSize: 12, color: "#666", fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, textTransform: 'capitalize' }}>{currentMonthYear}</p>
             <h1 style={{ fontSize: 26, fontWeight: 700, marginTop: 2 }}>Minhas Finanças</h1>
           </div>
-          <div style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(135deg,#6c63ff,#a78bfa)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>💰</div>
+          <div style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(135deg,#6c63ff,#a78bfa)", display: "flex", alignItems: "center", justifyCenter: "center", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>💰</div>
         </div>
       </div>
 
       {/* DASHBOARD */}
       {view === "dashboard" && (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 14 }}>
-
-          {/* Income card */}
+          {/* Renda */}
           <div className="card" style={{ background: "linear-gradient(135deg,#1e1b4b,#2d1f6e)", border: "1px solid #3730a355" }}>
             <p style={{ fontSize: 11, color: "#a78bfa", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Renda mensal</p>
             {editingIncome ? (
@@ -173,7 +169,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Balance bar */}
+          {/* Gráfico de Barras */}
           <div className="card">
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
               <span style={{ fontSize: 13, color: "#888" }}>Comprometido</span>
@@ -196,7 +192,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Saldo */}
+          {/* Saldo Livre */}
           <div className="card" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
               <p style={{ fontSize: 12, color: "#888" }}>Saldo livre</p>
@@ -205,7 +201,7 @@ export default function App() {
             <div style={{ fontSize: 40 }}>{balance >= 0 ? "😊" : "😰"}</div>
           </div>
 
-          {/* Category breakdown (Refatorado e limpo) */}
+          {/* Categorias */}
           <div className="card">
             <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: "#888" }}>Por categoria</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -228,10 +224,9 @@ export default function App() {
         </div>
       )}
 
-      {/* LIST */}
+      {/* LISTA DE CONTAS */}
       {view === "list" && (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Category filter */}
           <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
             <button className={`chip ${filterCat === "all" ? "active" : "inactive"}`} onClick={() => setFilterCat("all")}>Todas</button>
             {CATEGORIES.filter(c => bills.some(b => b.category === c.id)).map(c => (
@@ -268,50 +263,30 @@ export default function App() {
               );
             })}
           </div>
-          <p style={{ fontSize: 12, color: "#444", textAlign: "center" }}>Toque em ✓/○ para marcar como paga · ✕ para remover</p>
         </div>
       )}
 
-      {/* ADD */}
+      {/* ADICIONAR CONTA */}
       {view === "add" && (
         <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 12 }}>
           <p style={{ fontWeight: 700, fontSize: 18, marginBottom: 4 }}>Nova conta</p>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 12, color: "#888", fontWeight: 600 }}>Nome da conta</label>
-            <input type="text" placeholder="Ex: Conta de luz" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 12, color: "#888", fontWeight: 600 }}>Valor (R$)</label>
-            <input type="number" placeholder="0,00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 12, color: "#888", fontWeight: 600 }}>Categoria</label>
-            <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-              {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
-            </select>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={{ fontSize: 12, color: "#888", fontWeight: 600 }}>Recorrência</label>
-            <select value={form.recurrence} onChange={e => setForm(f => ({ ...f, recurrence: e.target.value }))}>
-              {RECURRENCE.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
-            </select>
-          </div>
-
+          <input type="text" placeholder="Nome da conta" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+          <input type="number" placeholder="Valor (R$)" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+          <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+            {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>)}
+          </select>
+          <select value={form.recurrence} onChange={e => setForm(f => ({ ...f, recurrence: e.target.value }))}>
+            {RECURRENCE.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+          </select>
           <button className="save-btn" onClick={addBill}>Adicionar conta</button>
           <button onClick={() => setView("list")} style={{ background: "transparent", color: "#666", fontSize: 14, padding: "8px 0" }}>Cancelar</button>
         </div>
       )}
 
-      {/* FAB */}
-      {view !== "add" && (
-        <button className="fab" onClick={() => setView("add")}>+</button>
-      )}
+      {/* Botão FAB flutuante */}
+      {view !== "add" && <button className="fab" onClick={() => setView("add")}>+</button>}
 
-      {/* Bottom Nav */}
+      {/* Menu Inferior Estilo iOS */}
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "#14141c", borderTop: "1px solid #1e1e28", display: "flex", zIndex: 20 }}>
         {[
           { id: "dashboard", label: "Resumo", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/></svg> },
